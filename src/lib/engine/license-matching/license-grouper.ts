@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { fnOrCache } from '../../cache/fn-cache.js';
 import { saveForInspection } from '../../cache/inspection.js';
+import { optional } from '../../config/helpers.js';
 import log from '../../log/logger.js';
 import { Database } from '../../model/database.js';
 import { License } from '../../model/license.js';
@@ -177,6 +178,12 @@ function scoreLicenseMatches(productGroupings: Iterable<{ addonKey: string; host
   log.info('Scoring Engine', 'Running license-similarity scoring');
   const startTime = process.hrtime.bigint();
 
+  let ignoredLicenses: string[] = [];
+  const ignoredLicenseString = optional("IGNORED_LICENSES");
+  if (ignoredLicenseString) {
+    ignoredLicenses = ignoredLicenseString.split(",");
+  }
+
   for (const { addonKey, hosting, group } of productGroupings) {
     log.info('Scoring Engine', `  Scoring [${addonKey}, ${hosting}]`);
 
@@ -184,6 +191,13 @@ function scoreLicenseMatches(productGroupings: Iterable<{ addonKey: string; host
       for (let i2 = i1 + 1; i2 < group.length; i2++) {
         const license1 = group[i1];
         const license2 = group[i2];
+
+        if (
+          ignoredLicenses.includes(license1.data.addonLicenseId)
+          || ignoredLicenses.includes(license2.data.addonLicenseId)
+        ) {
+          continue;
+        }
 
         const result = scorer.score(license1, license2);
 
