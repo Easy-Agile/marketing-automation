@@ -66,7 +66,7 @@ function setPartnerDomainsViaCoworkers(db: Database) {
 }
 
 export function flagPartnersViaCoworkers(db: Database, coworkers: Contact[]) {
-  if (coworkers.some(c => c.isPartner)) {
+  if (coworkers.some(c => c?.isPartner)) {
     for (const coworker of coworkers) {
       coworker.data.contactType = 'Partner';
       for (const company of coworker.companies.getAll()) {

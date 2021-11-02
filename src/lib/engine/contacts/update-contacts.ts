@@ -9,7 +9,7 @@ const PLATFORMS = new Set(Object.values(ADDONKEY_TO_PLATFORM));
 
 export function updateContactsBasedOnMatchResults(db: Database, allMatches: RelatedLicenseSet[]) {
   for (const group of allMatches) {
-    const contacts = new Set(group.map(m => db.contactManager.getByEmail(m.license.data.technicalContact.email)!));
+    const contacts = new Set(group.map(m => db.contactManager.getByEmail(m.license.data.technicalContact.email)!).filter(c => !!c));
 
     flagPartnersViaCoworkers(db, [...contacts]);
 
