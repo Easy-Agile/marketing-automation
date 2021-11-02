@@ -188,6 +188,8 @@ function scoreLicenseMatches(productGroupings: Iterable<{ addonKey: string; host
     log.info('Scoring Engine', `  Scoring [${addonKey}, ${hosting}]`);
 
     for (let i1 = 0; i1 < group.length; i1++) {
+      log.detailed(`Scoring Engine (${addonKey}, ${hosting})`, ` [${i1}/${group.length}]`);
+
       for (let i2 = i1 + 1; i2 < group.length; i2++) {
         const license1 = group[i1];
         const license2 = group[i2];

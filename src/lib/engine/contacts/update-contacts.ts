@@ -3,13 +3,15 @@ import { Database } from '../../model/database.js';
 import { SimpleError } from '../../util/errors.js';
 import { RelatedLicenseSet } from '../license-matching/license-grouper.js';
 import { flagPartnersViaCoworkers } from './contact-types.js';
+import log from '../../log/logger.js';
 
 const PLATFORMS = new Set(Object.values(ADDONKEY_TO_PLATFORM));
 
 
 export function updateContactsBasedOnMatchResults(db: Database, allMatches: RelatedLicenseSet[]) {
-  for (const group of allMatches) {
+  for (const [index, group] of allMatches.entries()) {
     const contacts = new Set(group.map(m => db.contactManager.getByEmail(m.license.data.technicalContact.email)!).filter(c => !!c));
+    log.detailed("", `[${index}/${allMatches.length}] CONTACTS: ${[...contacts].length}`);
 
     flagPartnersViaCoworkers(db, [...contacts]);
 

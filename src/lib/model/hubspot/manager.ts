@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { Downloader, Progress, Uploader } from '../../io/interfaces.js';
+import log from '../../log/logger.js';
 import { AttachableError } from '../../util/errors.js';
 import { batchesOf } from '../../util/helpers.js';
 import { Entity, EntityDatabase } from "./entity.js";
@@ -93,9 +94,13 @@ export abstract class EntityManager<
   }
 
   public async syncUpAllEntities() {
+    log.detailed(this.kind, "Syncing properties")
     await this.syncUpAllEntitiesProperties();
+    log.detailed(this.kind, "Syncing associations")
     await this.syncUpAllEntitiesAssociations();
-    for (const index of this.indexes) {
+
+    for (const [arrIndex, index] of this.indexes.entries()) {
+      log.detailed(this.kind, `[${arrIndex}/${this.indexes.length}] Adding indexes`)
       index.clear();
       index.addIndexesFor(this.entities);
     }
@@ -110,7 +115,9 @@ export abstract class EntityManager<
 
     if (toCreate.length > 0) {
       const groupsToCreate = batchesOf(toCreate, batchSize);
-      for (const entitiesToCreate of groupsToCreate) {
+      for (const [index, entitiesToCreate] of groupsToCreate.entries()) {
+        log.info(`Creating group of ${this.kind}`, `[${index}/${groupsToCreate.length}] ${entitiesToCreate.length}`)
+
         const results = await this.uploader.createHubspotEntities(
           this.kind,
           entitiesToCreate.map(e => ({
@@ -151,7 +158,8 @@ export abstract class EntityManager<
 
     if (toUpdate.length > 0) {
       const groupsToUpdate = batchesOf(toUpdate, batchSize);
-      for (const entitiesToUpdate of groupsToUpdate) {
+      for (const [index, entitiesToUpdate] of groupsToUpdate.entries()) {
+        log.detailed(`Updating group of ${this.kind}`, `[${index}/${groupsToUpdate.length}] ${entitiesToUpdate.length}`)
         const results = await this.uploader.updateHubspotEntities(
           this.kind,
           entitiesToUpdate.map(e => ({
