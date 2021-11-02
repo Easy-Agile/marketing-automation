@@ -56,7 +56,13 @@ export default class Hubspot {
       return (await this.apiFor(kind).batchApi.create({ inputs })).body.results;
     }
     catch (e: any) {
-      throw new Error(e.response.body.message);
+      if (e?.response?.body?.message) {
+        throw new Error(e.response.body.message);
+      } else {
+        console.log(JSON.stringify(e.body.toString(), null, 4));
+        console.log(JSON.stringify(inputs, null, 4));
+        throw e;
+      }
     }
   }
 
