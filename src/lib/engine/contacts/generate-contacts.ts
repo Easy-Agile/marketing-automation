@@ -1,4 +1,5 @@
 import capitalize from 'capitalize';
+import { optional } from '../../config/helpers.js';
 import { Contact, ContactData, ContactType } from '../../model/contact.js';
 import { Database } from '../../model/database.js';
 import { License } from '../../model/license.js';
@@ -11,8 +12,14 @@ export type GeneratedContact = ContactData & { lastUpdated: string };
 export class ContactGenerator {
 
   private toMerge = new Map<Contact, GeneratedContact[]>();
+  private skippedEmails: string[] = []
 
-  constructor(private db: Database) { }
+  constructor(private db: Database) {
+    const ignoredContactString = optional("IGNORED_CONTACTS");
+    if (ignoredContactString) {
+      this.skippedEmails = ignoredContactString?.split(",");
+    }
+   }
 
   run() {
     this.generateContacts();
@@ -39,8 +46,13 @@ export class ContactGenerator {
     }
   }
 
+
   private generateContact(item: License | Transaction, info: ContactInfo | PartnerBillingInfo | null) {
     if (!info) return;
+    if (this.skippedEmails.includes(info.email)) return;
+    // TODO: Move bugcrowdninja emails into skipped emails
+    if (info.email.includes("bugcrowdninja")) return;
+
     const generated = this.contactFrom(item, info);
 
     let contact = this.db.contactManager.getByEmail(generated.email);
