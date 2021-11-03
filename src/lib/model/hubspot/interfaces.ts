@@ -2,7 +2,7 @@ export type NewEntity = { properties: { [key: string]: string } };
 export type ExistingEntity = NewEntity & { id: string };
 export type FullEntity = ExistingEntity & { associations: RelativeAssociation[] };
 
-export type RelativeAssociation = `${EntityKind}:${string}`;
+export type RelativeAssociation = `${AssociationType}:${string}`;
 
 export type Association = {
   fromId: string,
@@ -11,3 +11,5 @@ export type Association = {
 };
 
 export type EntityKind = 'deal' | 'contact' | 'company';
+
+export type AssociationType = EntityKind | "parent" | "child";

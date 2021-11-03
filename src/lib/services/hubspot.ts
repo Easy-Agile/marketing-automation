@@ -83,11 +83,11 @@ export default class Hubspot {
 
   async createAssociations(fromKind: EntityKind, toKind: EntityKind, inputs: Association[]): Promise<void> {
     const result = await this.client.crm.associations.batchApi.create(fromKind, toKind, {
-      inputs: inputs.map(mapAssociationInput)
+      inputs: inputs.map(input => mapAssociationInput(fromKind, input))
     });
 
     if(result.response.statusCode === 207) {
-      console.error(fromKind, toKind, inputs.map(mapAssociationInput))
+      console.error(fromKind, toKind, inputs.map(input => mapAssociationInput(fromKind, input)))
       console.error(result.body)
       throw new Error("Associations failed to be created");
     }
@@ -95,7 +95,7 @@ export default class Hubspot {
 
   async deleteAssociations(fromKind: EntityKind, toKind: EntityKind, inputs: Association[]): Promise<void> {
     await this.client.crm.associations.batchApi.archive(fromKind, toKind, {
-      inputs: inputs.map(mapAssociationInput)
+      inputs: inputs.map(input => mapAssociationInput(fromKind, input))
     });
   }
 
@@ -109,10 +109,12 @@ export default class Hubspot {
 
 }
 
-function mapAssociationInput(input: Association) {
+function mapAssociationInput(fromKind: EntityKind,input: Association) {
+  const syncingParents = fromKind === "company" && input.toType === "company";
+
   return {
     from: { id: input.fromId },
     to: { id: input.toId },
-    type: input.toType,
+    type: syncingParents ? "child_to_parent_company" : `${fromKind}_to_${input.toType}`
   };
 }
