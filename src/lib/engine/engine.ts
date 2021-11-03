@@ -1,5 +1,6 @@
 import { EngineLogger } from '../log/engine-logger.js';
 import { Database } from '../model/database.js';
+import { CompanyGenerator } from './companies/generate-companies.js';
 import { identifyAndFlagContactTypes } from './contacts/contact-types.js';
 import { ContactGenerator } from './contacts/generate-contacts.js';
 import { updateContactsBasedOnMatchResults } from './contacts/update-contacts.js';
@@ -29,6 +30,19 @@ export default class Engine {
     new ContactGenerator(db).run();
 
     log.step('Upserting Generated Contacts in Hubspot');
+    await db.syncUpAllEntities();
+
+    log.step('Generating companies');
+    const companyGenerator = new CompanyGenerator(db);
+    companyGenerator.run();
+
+    log.step('Upserting Generated Companies in Hubspot');
+    await db.syncUpAllEntities();
+
+    log.step('Generating ');
+    companyGenerator.generateAssociations();
+
+    log.step('Upserting Company associations in Hubspot');
     await db.syncUpAllEntities();
 
     log.step('Running Scoring Engine');

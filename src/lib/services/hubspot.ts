@@ -21,10 +21,16 @@ export default class Hubspot {
         associations: Object.entries(associations || {})
           .flatMap(([, { results }]) => (
             results.map(item => {
-              const prefix = `${kind}_to_`;
-              assert.ok(item.type.startsWith(prefix));
-              const otherKind = item.type.substr(prefix.length) as EntityKind;
-              return `${otherKind}:${item.id}` as RelativeAssociation;
+              if (item.type === "parent_to_child_company") {
+                return `child:${item.id}` as RelativeAssociation;
+              } else if ("child_to_parent_company") {
+                return `parent:${item.id}` as RelativeAssociation;
+              } else {
+                const prefix = `${kind}_to_`;
+                assert.ok(item.type.startsWith(prefix));
+                const otherKind = item.type.substr(prefix.length) as EntityKind;
+                return `${otherKind}:${item.id}` as RelativeAssociation;
+              }
             })
           )),
       }));
@@ -76,9 +82,15 @@ export default class Hubspot {
   }
 
   async createAssociations(fromKind: EntityKind, toKind: EntityKind, inputs: Association[]): Promise<void> {
-    await this.client.crm.associations.batchApi.create(fromKind, toKind, {
+    const result = await this.client.crm.associations.batchApi.create(fromKind, toKind, {
       inputs: inputs.map(mapAssociationInput)
     });
+
+    if(result.response.statusCode === 207) {
+      console.error(fromKind, toKind, inputs.map(mapAssociationInput))
+      console.error(result.body)
+      throw new Error("Associations failed to be created");
+    }
   }
 
   async deleteAssociations(fromKind: EntityKind, toKind: EntityKind, inputs: Association[]): Promise<void> {

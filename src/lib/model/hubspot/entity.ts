@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { EntityKind, RelativeAssociation } from './interfaces.js';
+import { AssociationType, EntityKind, RelativeAssociation } from './interfaces.js';
 
 export interface EntityDatabase {
   getEntity(kind: EntityKind, id: string): Entity<any>;

@@ -192,7 +192,7 @@ export abstract class EntityManager<
           inputs: {
             fromId: changes.e.guaranteedId(),
             toId: changes.id,
-            toType: otherKind,
+            toType: this.kind === "company" && otherKind === "company" ? "child_to_parent_company" : `${this.kind}_to_${otherKind}`,
           }
         })));
 
