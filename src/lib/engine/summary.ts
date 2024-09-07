@@ -1,50 +1,66 @@
-import log from "../log/logger.js";
-import { Database } from "../model/database.js";
-import { Deal } from "../model/deal.js";
-import env from "../parameters/env.js";
-import { formatMoney, formatNumber } from "../util/formatters.js";
-import { isPresent } from "../util/helpers.js";
+import { Table } from "../log/table";
+import { Deal } from "../model/deal";
+import { formatMoney, formatNumber } from "../util/formatters";
+import { isPresent } from "../util/helpers";
+import { Engine } from "./engine";
 
-export function printSummary(db: Database) {
+export function printSummary(engine: Engine) {
 
-  if (db.dealManager.duplicatesToDelete.size > 0) {
-    log.warn('Deal Generator',
-      'Found duplicate deals; delete them manually',
-      [...db.dealManager.duplicatesToDelete].map(([dup, dupOf]) => ({
-        "Primary": dupOf.size > 1
-          ? [...dupOf].map(dealLink)
-          : dupOf.size === 0
-            ? 'Unknown???'
-            : dealLink([...dupOf][0]),
-        "Duplicate": dealLink(dup),
-      })));
+  if (engine.hubspot.dealManager.duplicates.size > 0) {
+    Table.print({
+      title: 'Duplicate Deals',
+      log: s => engine.console?.printWarning('Dups', s),
+      cols: [
+        [{ title: 'Primary' }, s => s[0].link()],
+        [{ title: 'Duplicate(s)' }, s => s[1].map(d => d.link())],
+      ],
+      rows: engine.hubspot.dealManager.duplicates,
+    });
+
+    const dupTotal = ([...engine.hubspot.dealManager.duplicates]
+      .flatMap(([primary, dups]) => dups)
+      .map((dup) => dup.data.amount ?? 0)
+      .reduce((a, b) => a + b));
+
+    engine.console?.printWarning('Deal Generator', 'Total of duplicates:', formatMoney(dupTotal));
+    engine.console?.printWarning('Deal Generator', 'Total duplicates:', engine.hubspot.dealManager.duplicates.size);
+
+    engine.tallier.less('Over-accounted: Duplicate deals', -dupTotal);
   }
 
-  const deals = db.dealManager.getArray();
-  log.info('Summary', 'Results of this run:', {
-    'TotalDealCount': formatNumber(deals.length),
-    'TotalDealSum': formatMoney(deals.map(d => d.data.amount)
-      .filter(isPresent)
-      .reduce((a, b) => a + b)),
+  if (engine.hubspot.dealManager.blockingDeals.size > 0) {
+    Table.print({
+      title: 'Blocking Deals',
+      log: s => engine.console?.printWarning('Blck', s),
+      cols: [
+        [{ title: 'Deal' }, s => s.link()]
+      ],
+      rows: engine.hubspot.dealManager.blockingDeals
+    })
+  }
 
-    'DealsCreated': formatNumber(db.dealManager.createdCount),
-    'DealsUpdated': formatNumber(db.dealManager.updatedCount),
-    'DealsAssociated': formatNumber(db.dealManager.associatedCount),
-    'DealsDisAssociated': formatNumber(db.dealManager.disassociatedCount),
+  const deals = engine.hubspot.dealManager.getArray();
 
-    'ContactsCreated': formatNumber(db.contactManager.createdCount),
-    'ContactsUpdated': formatNumber(db.contactManager.updatedCount),
-    'ContactsAssociated': formatNumber(db.contactManager.associatedCount),
-    'ContactsDisassociated': formatNumber(db.contactManager.disassociatedCount),
+  const table = new Table([{}, { align: 'right' }]);
 
-    'CompaniesUpdated': formatNumber(db.companyManager.updatedCount),
-  });
+  table.rows.push(['# Total Deals', formatNumber(deals.length)]);
+  table.rows.push(['$ Total Deals', formatMoney(sumDeals(deals))]);
+  table.rows.push(['$ Total Deals Won', formatMoney(sumDeals(deals.filter(d => d.isWon)))]);
+  table.rows.push(['$ Total Deals Lost', formatMoney(sumDeals(deals.filter(d => d.isLost)))]);
+  table.rows.push(['$ Total Deals Eval', formatMoney(sumDeals(deals.filter(d => d.isEval())))]);
 
+  engine.console?.printInfo('Summary', 'Results of this run:');
+  for (const row of table.eachRow()) {
+    engine.console?.printInfo('Summary', '  ' + row);
+  }
+
+  engine.tallier.less('Deal sum', sumDeals(deals));
+  engine.tallier.printTable();
 }
 
-function dealLink(deal: Deal) {
-  const hsAccountId = env.hubspot.accountId;
-  return (hsAccountId
-    ? `https://app.hubspot.com/contacts/${hsAccountId}/deal/${deal.id}/`
-    : `deal-id=${deal.id}`);
+function sumDeals(deals: Deal[]) {
+  return (deals
+    .map(d => d.data.amount)
+    .filter(isPresent)
+    .reduce((a, b) => a + b, 0));
 }

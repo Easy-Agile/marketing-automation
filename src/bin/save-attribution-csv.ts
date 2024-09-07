@@ -1,31 +1,30 @@
-import { saveForInspection } from '../lib/cache/inspection.js';
-import { IO } from '../lib/io/io.js';
-import log from '../lib/log/logger.js';
-import { Database } from '../lib/model/database.js';
-import { isPresent, sorter } from '../lib/util/helpers.js';
+import 'source-map-support/register';
+import { engineConfigFromENV } from '../lib/config/env';
+import { dataManager } from '../lib/data/manager';
+import { Engine } from "../lib/engine/engine";
+import { isPresent, sorter } from "../lib/util/helpers";
 
-log.level = log.Levels.Verbose;
-const db = new Database(new IO({ in: 'local', out: 'local' }));
-await db.downloadAllData();
+const dataSet = dataManager.latestDataSet();
+const logDir = dataSet.makeLogDir!(`inspect-${Date.now()}`);
+const engine = new Engine(engineConfigFromENV());
+engine.run(dataSet);
 
-const attributions = (db
-  .licenses
+const attributions = (engine
+  .mpac.licenses
   .map(l => l.data.attribution)
   .filter(isPresent)
-);
-
-saveForInspection('attributions', attributions
   .sort(sorter(a => [
     Object.keys(a).length,
     a.channel,
     a.referrerDomain,
   ].join(',')))
-  .map(a => ({
-    channel: a.channel,
-    referrerDomain: a.referrerDomain,
-    campaignName: a.campaignName,
-    campaignSource: a.campaignSource,
-    campaignMedium: a.campaignMedium,
-    campaignContent: a.campaignContent,
-  }))
 );
+
+logDir.attributionsLog()!.writeArray(attributions.map(a => ({
+  channel: a.channel,
+  referrerDomain: a.referrerDomain,
+  campaignName: a.campaignName,
+  campaignSource: a.campaignSource,
+  campaignMedium: a.campaignMedium,
+  campaignContent: a.campaignContent,
+})));

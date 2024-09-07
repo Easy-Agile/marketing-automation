@@ -1,7 +1,7 @@
-import { IO } from '../lib/io/io.js';
-import log from '../lib/log/logger.js';
-import { Database } from '../lib/model/database.js';
+import 'source-map-support/register';
+import { downloadAllData } from '../lib/engine/download';
+import { hubspotConfigFromENV } from '../lib/hubspot/hubspot';
+import { ConsoleLogger } from '../lib/log/console';
 
-log.level = log.Levels.Verbose;
-const db = new Database(new IO({ in: 'remote', out: 'local' }));
-await db.downloadAllData();
+const console = new ConsoleLogger();
+void downloadAllData(console, hubspotConfigFromENV());

@@ -4,7 +4,7 @@ export function isPresent<T>(o: T | undefined | null): o is T {
 
 export function batchesOf<T>(array: T[], count: number): T[][] {
   const tmp = [...array];
-  const batches = [];
+  const batches: T[][] = [];
   while (tmp.length) {
     batches.push(tmp.splice(0, count));
   }
@@ -17,4 +17,17 @@ export function sorter<T>(fn: (o: T) => string | number, dir: 'ASC' | 'DSC' = 'A
   return (a: T, b: T) => (
     fn(a) < fn(b) ? down : up
   );
+}
+
+interface Closeable {
+  close(): void;
+}
+
+export function withAutoClose<T extends Closeable | undefined, R>(closeable: T, fn: (o: T) => R): R {
+  try {
+    return fn(closeable);
+  }
+  finally {
+    closeable?.close();
+  }
 }

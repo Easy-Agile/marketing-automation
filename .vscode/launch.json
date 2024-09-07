@@ -5,67 +5,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run cached-download/scorer",
+      "name": "Dry-run",
       "request": "launch",
       "skipFiles": [
         "<node_internals>/**"
       ],
       "program": "${workspaceFolder}/src/bin/run-once.ts",
       "args": [
-        "--in=local",
-        "--out=local",
-        "--cached-fns=scorer.json",
-        "--loglevel=info",
+        "fast"
       ],
-      "type": "pwa-node",
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "!**/node_modules/**"
-      ]
+      "type": "pwa-node"
     },
     {
-      "name": "Run cached-download",
+      "name": "Dry-run 3x",
       "request": "launch",
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}/src/bin/run-once.ts",
-      "args": [
-        "--in=local",
-        "--out=local",
-        "--loglevel=info",
-      ],
-      "type": "pwa-node",
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "!**/node_modules/**"
-      ]
-    },
-    {
-      "name": "Run cached-download multiple times",
-      "request": "launch",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "program": "${workspaceFolder}/src/bin/verify-multiple-runs.ts",
-      "type": "pwa-node",
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "!**/node_modules/**"
-      ]
-    },
-    {
-      "name": "Downloader",
-      "program": "${workspaceFolder}/src/bin/download.ts",
-      "request": "launch",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "type": "pwa-node",
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "!**/node_modules/**"
-      ]
+      "program": "${workspaceFolder}/src/bin/run-3x.ts",
+      "type": "pwa-node"
     },
     {
       "name": "Investigate Data",
@@ -74,11 +32,16 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "type": "pwa-node",
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
-        "!**/node_modules/**"
-      ]
+      "type": "pwa-node"
+    },
+    {
+      "name": "Analyze Data Shift",
+      "program": "${workspaceFolder}/src/bin/analyze-data-shift.ts",
+      "request": "launch",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "type": "pwa-node"
     }
   ]
 }

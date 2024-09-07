@@ -1,7 +1,7 @@
-import { Contact } from "./contact.js";
-import { Entity } from "./hubspot/entity.js";
-import { EntityKind } from "./hubspot/interfaces.js";
-import { EntityManager, PropertyTransformers } from "./hubspot/manager.js";
+import { Entity } from "../hubspot/entity";
+import { EntityAdapter } from "../hubspot/interfaces";
+import { EntityManager } from "../hubspot/manager";
+import { Contact } from "./contact";
 
 type CompanyData = {
   name: string;
@@ -10,41 +10,40 @@ type CompanyData = {
 
 export class Company extends Entity<CompanyData> {
 
-  contacts = this.makeDynamicAssociation<Contact>('contact');
-
-  override pseudoProperties: (keyof CompanyData)[] = [];
+  public contacts = this.makeDynamicAssociation<Contact>('contact');
 
 }
 
+export const CompanyAdapter: EntityAdapter<CompanyData> = {
+
+  kind: 'company',
+
+  associations: {
+    contact: 'down',
+  },
+
+  data: {
+    name: {
+      property: 'name',
+      down: name => name ?? '',
+      up: name => name,
+    },
+    type: {
+      property: 'type',
+      down: type => type === 'PARTNER' ? 'Partner' : null,
+      up: type => type === 'Partner' ? 'PARTNER' : '',
+    },
+  },
+
+  additionalProperties: [],
+
+  managedFields: new Set(),
+
+};
+
 export class CompanyManager extends EntityManager<CompanyData, Company> {
 
-  override Entity = Company;
-  override kind: EntityKind = 'company';
-
-  override downAssociations: EntityKind[] = [
-    'contact'
-  ];
-
-  override upAssociations: EntityKind[] = [];
-
-  override apiProperties: string[] = [
-    'name',
-    'type',
-  ];
-
-  override fromAPI(data: { [key: string]: string | null }): CompanyData | null {
-    return {
-      name: data['name'] ?? '',
-      type: data['type'] === 'PARTNER' ? 'Partner' : null,
-    };
-  }
-
-  override toAPI: PropertyTransformers<CompanyData> = {
-    name: name => ['name', name],
-    type: type => ['type', type === 'Partner' ? 'PARTNER' : ''],
-  };
-
-  override identifiers: (keyof CompanyData)[] = [
-  ];
+  protected override Entity = Company;
+  public override entityAdapter = CompanyAdapter;
 
 }

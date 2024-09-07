@@ -1,18 +1,23 @@
-import log from '../log/logger.js';
-import env from '../parameters/env.js';
+import { ConsoleLogger } from "../log/console";
 
-export default async function run({ work, failed }: {
+export interface RunLoopConfig {
+  runInterval: string,
+  retryInterval: string,
+  retryTimes: number,
+}
+
+export default function run(console: ConsoleLogger, loopConfig: RunLoopConfig, { work, failed }: {
   work: () => Promise<void>,
   failed: (errors: Error[]) => Promise<void>,
 }) {
-  log.info('Runner', 'Starting with options:', env.engine);
-  const normalInterval = env.engine.runInterval;
-  const errorInterval = env.engine.retryInterval;
-  const errorTries = env.engine.retryTimes;
+  console.printInfo('Runner', 'Starting with options:', loopConfig);
+  const normalInterval = loopConfig.runInterval;
+  const errorInterval = loopConfig.retryInterval;
+  const errorTries = loopConfig.retryTimes;
 
-  log.info('Runner', 'Running loop');
+  console.printInfo('Runner', 'Running loop');
   const errors: Error[] = [];
-  run();
+  void run();
 
   async function run() {
     try {
@@ -22,17 +27,17 @@ export default async function run({ work, failed }: {
         errors.length = 0;
       }
 
-      log.info('Runner', `Finished successfully; waiting ${normalInterval} for next loop.`);
+      console.printInfo('Runner', `Finished successfully; waiting ${normalInterval} for next loop.`);
       setTimeout(run, parseTimeToMs(normalInterval));
     }
     catch (e: any) {
-      log.error('Runner', 'Error:', e);
+      console.printError('Runner', 'Error:', e);
       errors.push(e);
 
       const longTermFailure = (errors.length % errorTries === 0);
       const waitTime = longTermFailure ? normalInterval : errorInterval;
 
-      log.warn('Runner', `Run canceled by error. Trying again in ${waitTime}.`);
+      console.printWarning('Runner', `Run canceled by error. Trying again in ${waitTime}.`);
 
       setTimeout(run, parseTimeToMs(waitTime));
 

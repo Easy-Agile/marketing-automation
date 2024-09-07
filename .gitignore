@@ -3,3 +3,6 @@
 node_modules/
 *.cpuprofile
 /out/
+.idea
+.npmrc
+.yarnrc

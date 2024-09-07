@@ -1,10 +1,14 @@
-import * as assert from 'assert';
-import { AddonLicenseId, ContactInfo, getContactInfo, getPartnerInfo, maybeGetContactInfo, PartnerInfo } from "./marketplace/common.js";
-import { RawTransaction } from "./marketplace/raw.js";
+import assert from "assert";
+import { getContactInfo, getPartnerInfo, maybeGetContactInfo, RawTransaction } from "../marketplace/raw";
+import { License } from "./license";
+import { ContactInfo, MpacRecord, PartnerInfo } from "./record";
 
 export interface TransactionData {
-  addonLicenseId: AddonLicenseId,
-  licenseId: string,
+  addonLicenseId: string | null,
+  appEntitlementId: string | null,
+  appEntitlementNumber: string | null,
+
+  licenseId: string | null,
   addonKey: string,
   addonName: string,
   lastUpdated: string,
@@ -24,6 +28,7 @@ export interface TransactionData {
   maintenanceEndDate: string,
 
   transactionId: string,
+  transactionLineItemId: string,
   saleDate: string,
   saleType: 'Renewal' | 'Upgrade' | 'New' | 'Refund',
 
@@ -33,17 +38,31 @@ export interface TransactionData {
   vendorAmount: number,
 }
 
-export class Transaction {
+export function isTransaction(value: Transaction | License): value is Transaction {
+  return value instanceof Transaction
+}
 
-  public data: TransactionData;
-  public tier: number;
+export class Transaction extends MpacRecord<TransactionData> {
 
-  constructor(rawTransaction: RawTransaction) {
-    this.data = {
+  /** Unique ID for this Transaction. */
+  declare id;
+  public ids = new Set<string>();
+
+  declare tier;
+
+  public license!: License;
+  public refunded = false;
+
+  static fromRaw(rawTransaction: RawTransaction) {
+    return new Transaction({
       transactionId: rawTransaction.transactionId,
+      transactionLineItemId: rawTransaction.transactionLineItemId,
 
-      addonLicenseId: rawTransaction.addonLicenseId,
-      licenseId: rawTransaction.licenseId,
+      addonLicenseId: rawTransaction.addonLicenseId ?? null,
+      appEntitlementId: rawTransaction.appEntitlementId ?? null,
+      appEntitlementNumber: rawTransaction.appEntitlementNumber ?? null,
+
+      licenseId: rawTransaction.licenseId ?? null,
       addonKey: rawTransaction.addonKey,
       addonName: rawTransaction.addonName,
       lastUpdated: rawTransaction.lastUpdated,
@@ -67,7 +86,21 @@ export class Transaction {
       billingPeriod: rawTransaction.purchaseDetails.billingPeriod,
       purchasePrice: rawTransaction.purchaseDetails.purchasePrice,
       vendorAmount: rawTransaction.purchaseDetails.vendorAmount,
+    });
+  }
+
+  public constructor(data: TransactionData) {
+    super(data);
+
+    const maybeAdd = (prefix: string, id: string | null) => {
+      if (id) this.ids.add(uniqueTransactionLineId(this.data.transactionId, this.data.transactionLineItemId, `${prefix}-${id}`));
     };
+
+    maybeAdd('ALI', this.data.addonLicenseId);
+    maybeAdd('AEI', this.data.appEntitlementId);
+    maybeAdd('AEN', this.data.appEntitlementNumber);
+
+    this.id = [...this.ids][0];
 
     this.tier = this.parseTier();
   }
@@ -75,17 +108,36 @@ export class Transaction {
   private parseTier() {
     const tier = this.data.tier;
 
+    if (!tier) {
+      console.warn('Transaction tier is not present! Transaction data:', this.data);
+      return -1;
+    }
+
     if (tier === 'Unlimited Users') return 10001;
 
     let m;
-    if (m = tier.match(/^Per Unit Pricing \((\d+) users\)$/i)) {
+    if ((m = tier.match(/^Per Unit Pricing \((\d+) users\)$/i))) {
       return +m[1];
     }
-    if (m = tier.match(/^(\d+) Users$/)) {
+    if ((m = tier.match(/^(\d+) Users$/))) {
+      return +m[1];
+    }
+    if ((m = tier.match(/^(\d+) User$/))) {
       return +m[1];
     }
 
     assert.fail(`Unknown transaction tier: ${tier}`);
   }
 
+}
+
+export function uniqueLegacyTransactionId(transactionId: string, licenseId: string) {
+  if (!transactionId.startsWith('AT')) transactionId = `(AT)${transactionId}`;
+  return `${transactionId}[${licenseId}]`
+}
+
+
+export function uniqueTransactionLineId(transactionId: string, transactionLineId: string, licenseId: string) {
+  if (!transactionId.startsWith('AT')) transactionId = `(AT)${transactionId}`;
+  return `${transactionId}/${transactionLineId}[${licenseId}]`
 }
