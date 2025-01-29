@@ -1,43 +1,57 @@
-import Engine from "../lib/engine/engine.js";
-import { IO } from "../lib/io/io.js";
-import Slack from "../lib/io/slack.js";
-import { Database } from "../lib/model/database.js";
-import { cli } from "../lib/parameters/cli.js";
-import env from "../lib/parameters/env.js";
-import { AttachableError, SimpleError } from '../lib/util/errors.js';
-import run from '../lib/util/runner.js';
+import 'source-map-support/register';
+import { dataShiftConfigFromENV, engineConfigFromENV, runLoopConfigFromENV } from "../lib/config/env";
+import { DataShiftAnalyzer } from '../lib/data-shift/analyze';
+import { loadDataSets } from '../lib/data-shift/loader';
+import { DataShiftReporter } from '../lib/data-shift/reporter';
+import { dataManager } from '../lib/data/manager';
+import { downloadAllData } from '../lib/engine/download';
+import { Engine } from "../lib/engine/engine";
+import { SlackNotifier } from '../lib/engine/slack-notifier';
+import { hubspotConfigFromENV } from '../lib/hubspot/hubspot';
+import { HubspotUploader } from '../lib/hubspot/uploader';
+import { ConsoleLogger } from '../lib/log/console';
+import run from "../lib/util/runner";
 
-const io = IO.fromCli();
-cli.failIfExtraOpts();
+const console = new ConsoleLogger();
+const uploader = new HubspotUploader(console);
 
-const slack = new Slack();
+const runLoopConfig = runLoopConfigFromENV();
+const notifier = SlackNotifier.fromENV(console);
+void notifier?.notifyStarting();
 
-await slack.postToSlack(`Starting Marketing Engine`);
-
-await run({
+run(console, runLoopConfig, {
 
   async work() {
-    const db = new Database(io);
-    await new Engine().run(db);
+    console.printInfo('Main', 'Pruning data sets');
+    dataManager.pruneDataSets(console);
+
+    console.printInfo('Main', 'Downloading data');
+    const ms = await downloadAllData(console, hubspotConfigFromENV());
+    const dataSet = dataManager.dataSetFrom(ms);
+    const logDir = dataSet.makeLogDir!('main');
+
+    console.printInfo('Main', 'Running engine');
+    const engine = new Engine(engineConfigFromENV(), console, logDir);
+    engine.run(dataSet);
+
+    console.printInfo('Main', 'Upsyncing changes to HubSpot');
+    await uploader.upsyncChangesToHubspot(dataSet.hubspot);
+
+    console.printInfo('Main', 'Writing HubSpot change log file');
+    logDir.hubspotOutputLogger()?.logResults(dataSet.hubspot);
+
+    console.printInfo('Main', 'Analyzing data shift');
+    const dataSets = loadDataSets(console);
+    const analyzer = new DataShiftAnalyzer(dataShiftConfigFromENV(), console);
+    const results = analyzer.run(dataSets);
+    const reporter = new DataShiftReporter(console, notifier);
+    reporter.report(results);
+
+    console.printInfo('Main', 'Done');
   },
 
   async failed(errors) {
-    await slack.postToSlack(`Failed ${env.engine.retryTimes} times. Below are the specific errors, in order. Trying again in ${env.engine.runInterval}.`);
-    for (const error of errors) {
-      if (error instanceof SimpleError) {
-        await slack.postErrorToSlack(error.message);
-      }
-      else if (error instanceof AttachableError) {
-        await slack.postErrorToSlack(`\`\`\`\n${error.stack}\n\`\`\``);
-        await slack.postAttachmentToSlack({
-          title: 'Error attachment for ^',
-          content: error.attachment,
-        });
-      }
-      else {
-        await slack.postErrorToSlack(`\`\`\`\n${error.stack}\n\`\`\``);
-      }
-    }
+    await notifier?.notifyErrors(runLoopConfig, errors);
   },
 
 });

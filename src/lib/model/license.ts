@@ -1,6 +1,7 @@
 import * as assert from 'assert';
-import { AddonLicenseId, ContactInfo, getContactInfo, getPartnerInfo, maybeGetContactInfo, PartnerInfo } from "./marketplace/common.js";
-import { RawLicense } from "./marketplace/raw.js";
+import { getContactInfo, getPartnerInfo, maybeGetContactInfo, RawLicense } from "../marketplace/raw";
+import { ContactInfo, MpacRecord, PartnerInfo } from './record.js';
+import { Transaction } from './transaction';
 
 type AttributionData = {
   channel: string;
@@ -20,32 +21,35 @@ type ParentProductInfo = {
 
 type NewEvalData = {
   evaluationLicense: string;
-  daysToConvertEval: string;
+  daysToConvertEval: number;
   evaluationStartDate: string;
   evaluationEndDate: string;
   evaluationSaleDate: string;
 };
 
 export interface LicenseData {
-  addonLicenseId: AddonLicenseId,
-  licenseId: string,
+  addonLicenseId: string | null,
+  appEntitlementId: string | null,
+  appEntitlementNumber: string | null,
+
+  licenseId: string | null,
   addonKey: string,
   addonName: string,
   lastUpdated: string,
 
-  technicalContact: ContactInfo,
+  technicalContact: ContactInfo | null,
   billingContact: ContactInfo | null,
   partnerDetails: PartnerInfo | null,
 
-  company: string,
-  country: string,
-  region: string,
+  company: string | null,
+  country: string | null,
+  region: string | null,
 
   tier: string,
   licenseType: 'COMMERCIAL' | 'ACADEMIC' | 'COMMUNITY' | 'EVALUATION' | 'OPEN_SOURCE' | 'DEMONSTRATION' | 'INTERNAL USE',
   hosting: 'Server' | 'Cloud' | 'Data Center',
   maintenanceStartDate: string,
-  maintenanceEndDate: string,
+  maintenanceEndDate: string | null,
 
   status: 'inactive' | 'active' | 'cancelled',
 
@@ -55,18 +59,23 @@ export interface LicenseData {
   newEvalData: NewEvalData | null,
 }
 
-export class License {
+export class License extends MpacRecord<LicenseData> {
 
-  public data: LicenseData;
-  public tier: number;
+  /** Unique ID for this License. */
+  declare id;
+  public ids = new Set<string>();
+
+  declare tier;
+
+  public transactions: Transaction[] = [];
   public active: boolean;
 
-  constructor(rawLicense: RawLicense) {
+  static fromRaw(rawLicense: RawLicense) {
     let newEvalData: NewEvalData | null = null;
     if (rawLicense.evaluationLicense) {
       newEvalData = {
         evaluationLicense: rawLicense.evaluationLicense,
-        daysToConvertEval: rawLicense.daysToConvertEval as string,
+        daysToConvertEval: +rawLicense.daysToConvertEval!,
         evaluationStartDate: rawLicense.evaluationStartDate as string,
         evaluationEndDate: rawLicense.evaluationEndDate as string,
         evaluationSaleDate: rawLicense.evaluationSaleDate as string,
@@ -86,33 +95,53 @@ export class License {
       } as ParentProductInfo;
     }
 
-    this.data = {
-      addonLicenseId: rawLicense.addonLicenseId,
-      licenseId: rawLicense.licenseId,
+    return new License({
+      addonLicenseId: rawLicense.addonLicenseId ?? null,
+      appEntitlementId: rawLicense.appEntitlementId ?? null,
+      appEntitlementNumber: rawLicense.appEntitlementNumber ?? null,
+
+      licenseId: rawLicense.licenseId ?? null,
       addonKey: rawLicense.addonKey,
       addonName: rawLicense.addonName,
       lastUpdated: rawLicense.lastUpdated,
 
-      technicalContact: getContactInfo(rawLicense.contactDetails.technicalContact),
+      technicalContact: rawLicense.contactDetails.technicalContact ? getContactInfo(rawLicense.contactDetails.technicalContact) : null,
       billingContact: maybeGetContactInfo(rawLicense.contactDetails.billingContact),
       partnerDetails: getPartnerInfo(rawLicense.partnerDetails),
 
-      company: rawLicense.contactDetails.company,
-      country: rawLicense.contactDetails.country,
-      region: rawLicense.contactDetails.region,
+      company: rawLicense.contactDetails.company ?? null,
+      country: rawLicense.contactDetails.country ?? null,
+      region: rawLicense.contactDetails.region ?? null,
 
       tier: rawLicense.tier,
       licenseType: rawLicense.licenseType,
       hosting: rawLicense.hosting,
       maintenanceStartDate: rawLicense.maintenanceStartDate,
-      maintenanceEndDate: rawLicense.maintenanceEndDate,
+      maintenanceEndDate: rawLicense.maintenanceEndDate ?? null,
 
       status: rawLicense.status,
       evaluationOpportunitySize: rawLicense.evaluationOpportunitySize ?? '',
-      attribution: rawLicense.attribution ?? null,
+      attribution: rawLicense.attribution?.channel ? {...rawLicense.attribution, channel: rawLicense.attribution.channel, }  : null,
       parentInfo,
       newEvalData,
+    });
+  }
+
+  evaluatedFrom: License | undefined = undefined;
+  evaluatedTo: License | undefined = undefined;
+
+  public constructor(data: LicenseData) {
+    super(data);
+
+    const maybeAdd = (prefix: string, id: string | null) => {
+      if (id) this.ids.add(`${prefix}-${id}`);
     };
+
+    maybeAdd('ALI', this.data.addonLicenseId);
+    maybeAdd('AEI', this.data.appEntitlementId);
+    maybeAdd('AEN', this.data.appEntitlementNumber);
+
+    this.id = [...this.ids][0];
 
     this.tier = Math.max(this.parseTier(), this.tierFromEvalOpportunity());
     this.active = this.data.status === 'active';
@@ -120,6 +149,12 @@ export class License {
 
   private parseTier() {
     const tier = this.data.tier;
+
+    if (!tier) {
+      console.warn('License tier is not present! License data:', this.data);
+      return -1;
+    }
+
     switch (tier) {
       case 'Unlimited Users':
         return 10001;

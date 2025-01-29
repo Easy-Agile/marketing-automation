@@ -1,7 +1,10 @@
-import { printSummary } from '../lib/engine/summary.js';
-import { IO } from '../lib/io/io.js';
-import { Database } from '../lib/model/database.js';
+import 'source-map-support/register';
+import { engineConfigFromENV } from '../lib/config/env';
+import { dataManager } from '../lib/data/manager';
+import { Engine } from "../lib/engine/engine";
+import { printSummary } from "../lib/engine/summary";
 
-const db = new Database(new IO({ in: 'local', out: 'local' }));
-await db.downloadAllData();
-printSummary(db);
+const dataSet = dataManager.latestDataSet();
+const engine = new Engine(engineConfigFromENV());
+engine.run(dataSet);
+printSummary(engine);
